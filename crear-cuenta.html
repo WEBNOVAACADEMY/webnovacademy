@@ -12,7 +12,7 @@ body{min-height:100vh;font-family:Inter,system-ui,sans-serif;background:var(--bg
  background-image:radial-gradient(700px 400px at 80% -5%,#1b3fa088,transparent),radial-gradient(600px 400px at -10% 60%,#0a5a9a44,transparent)}
 a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
 .grad{background:linear-gradient(90deg,var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
-header{border-bottom:1px solid var(--line);background:#050b1acc;backdrop-filter:blur(12px)}
+header{border-bottom:1px solid var(--line);background:#050b1a}
 .bar{width:min(1120px,92%);margin:auto;height:68px;display:flex;align-items:center;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.5px;color:var(--txt)}
 .brand img{height:46px;mix-blend-mode:screen}.back{color:var(--mut);font-size:.9rem}
@@ -67,7 +67,7 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
       <div class="field"><label for="clave2">Confirmar contraseña</label>
         <div class="inp"><input id="clave2" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="clave2">Mostrar</button></div>
         <div class="err">Las contraseñas no coinciden.</div></div>
-      <div class="field" id="f-terms"><label class="terms"><input id="terms" type="checkbox"><span>Acepto los <a href="#">términos y condiciones</a> y la <a href="#">política de privacidad</a>.</span></label><div class="err">Debes aceptar los términos para continuar.</div></div>
+      <div class="field" id="f-terms"><label class="terms"><input id="terms" type="checkbox"><span>Acepto los <a href="terminos.html" target="_blank" rel="noopener">términos y condiciones</a> y la <a href="privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</span></label><div class="err">Debes aceptar los términos para continuar.</div></div>
       <button class="btn" type="submit">Crear mi cuenta</button>
       <div class="notice" id="notice"></div>
     </form>
