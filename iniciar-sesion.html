@@ -145,7 +145,7 @@ function msgError(e){
       if(error)throw error;
       const n=(data.user.user_metadata&&data.user.user_metadata.nombre)||"";
       /* TODO siguiente etapa: redirigir a "Mi Aula" (mi-aula.html) */
-      aviso("n-login","¡Sesión iniciada"+(n?", "+n:"")+"! Tu panel Mi Aula estará disponible en la próxima etapa.","ok2");
+      aviso("n-login","¡Sesión iniciada"+(n?", "+n:"")+"! Entrando a Mi Aula...","ok2");setTimeout(()=>location.href="mi-aula.html",900);
     });
     if(err)aviso("n-login",msgError(err),"bad2");
   });
