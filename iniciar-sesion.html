@@ -38,6 +38,7 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
 .notice{display:none;margin-top:16px;padding:12px 14px;border-radius:12px;background:#3cc8ff14;border:1px solid #3cc8ff55;color:#cdeeff;font-size:.85rem}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .link{background:none;border:0;color:var(--cyan);cursor:pointer;font-size:.85rem;padding:0}.right{text-align:right;margin:-6px 0 4px}.view{display:none}.view.on{display:block}
+.notice.bad2{border-color:var(--err);background:#ff6b7a14;color:#ffd3d8}.notice.ok2{border-color:var(--ok);background:#35d49a14;color:#c8f5e3}.btn:disabled{opacity:.6;cursor:wait;transform:none}
 </style>
 </head>
 <body>
@@ -62,7 +63,7 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
           <div class="err">Ingresa tu contraseña.</div></div>
         <div class="right"><button type="button" class="link" data-go="v-rec">¿Olvidaste tu contraseña?</button></div>
         <button class="btn" type="submit">Iniciar sesión</button>
-        <div class="notice" id="n-login">Vista de diseño: las validaciones funcionan, pero aún no se inicia sesión. Se conectará con Supabase Auth en la siguiente etapa.</div>
+        <div class="notice" id="n-login"></div>
       </form>
       <p class="foot">¿Aún no tienes cuenta? <a href="crear-cuenta.html">Crear cuenta</a></p>
     </div>
@@ -74,32 +75,103 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
       <form id="form-rec" novalidate>
         <div class="field"><label for="correo2">Correo electrónico</label><input id="correo2" type="email" autocomplete="email"><div class="err">Ingresa un correo con formato válido.</div></div>
         <button class="btn" type="submit">Enviar enlace</button>
-        <div class="notice" id="n-rec">Vista de diseño: no se envía ningún correo todavía. El envío real se conectará con Supabase Auth en la siguiente etapa.</div>
+        <div class="notice" id="n-rec"></div>
       </form>
       <p class="foot"><button type="button" class="link" data-go="v-login">← Volver a iniciar sesión</button></p>
+    </div>
+
+    <!-- Vista 3: nueva contraseña (se abre desde el enlace del correo de recuperación) -->
+    <div class="view" id="v-new">
+      <h1>Nueva <span class="grad">contraseña</span></h1>
+      <p class="sub">Crea una contraseña nueva para tu cuenta.</p>
+      <form id="form-new" novalidate>
+        <div class="field"><label for="clave3">Nueva contraseña</label>
+          <div class="inp"><input id="clave3" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="clave3">Mostrar</button></div>
+          <div class="hint">Mínimo 8 caracteres, con mayúscula, minúscula y número.</div>
+          <div class="err">La contraseña no cumple los requisitos.</div></div>
+        <div class="field"><label for="clave4">Confirmar contraseña</label>
+          <div class="inp"><input id="clave4" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="clave4">Mostrar</button></div>
+          <div class="err">Las contraseñas no coinciden.</div></div>
+        <button class="btn" type="submit">Guardar contraseña</button>
+        <div class="notice" id="n-new"></div>
+      </form>
     </div>
 
   </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-/* ===== VALIDACIONES (solo interfaz) =====
-   TODO Etapa 2: login -> supabase.auth.signInWithPassword; recuperar -> supabase.auth.resetPasswordForEmail.
-   Los errores de credenciales incorrectas los devolverá Supabase. */
+/* ===== CONEXIÓN A SUPABASE =====
+   La clave "publishable" es pública por diseño. NUNCA pegues aquí la clave "secret" ni "service_role". */
+const SUPABASE_URL="https://idmkxsempojxepfhhcie.supabase.co";
+const SUPABASE_KEY="sb_publishable_bud4Jlh9raHIgpUM7JG40Q_jkwNp_zo";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const paginaLogin=new URL("iniciar-sesion.html",location.href).href;
+function msgError(e){
+  const m=((e&&e.message)||"").toLowerCase();
+  if(m.includes("invalid login"))return "Correo o contraseña incorrectos.";
+  if(m.includes("not confirmed"))return "Aún no confirmas tu correo. Revisa tu bandeja de entrada (y spam).";
+  if(m.includes("already registered"))return "Este correo ya está registrado. Intenta iniciar sesión.";
+  if(m.includes("rate limit")||m.includes("too many"))return "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.";
+  if(m.includes("password"))return "La contraseña no cumple los requisitos de seguridad.";
+  if(m.includes("fetch")||m.includes("network"))return "No pudimos conectarnos. Revisa tu internet e inténtalo de nuevo.";
+  return "Ocurrió un error. Inténtalo nuevamente.";
+}
+
 (function(){
   const $=id=>document.getElementById(id), wrap=el=>el.closest(".field");
   const mail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
-  const rules={correo:mail,clave:v=>v!=="",correo2:mail};
+  const rules={correo:mail,clave:v=>v!=="",correo2:mail,
+    clave3:v=>v.length>=8&&/[a-z]/.test(v)&&/[A-Z]/.test(v)&&/\d/.test(v),
+    clave4:v=>v!==""&&v===$("clave3").value};
   function check(id){const ok=rules[id]($(id).value);const w=wrap($(id));w.classList.toggle("bad",!ok);w.classList.toggle("good",ok);return ok}
+  function aviso(id,t,tipo){const n=$(id);n.textContent=t;n.className="notice "+(tipo||"");n.style.display="block"}
+  function vista(id){document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));$(id).classList.add("on")}
   Object.keys(rules).forEach(id=>{$(id).addEventListener("blur",()=>check(id));$(id).addEventListener("input",()=>{if(wrap($(id)).classList.contains("bad"))check(id)})});
   document.querySelectorAll("[data-eye]").forEach(b=>b.addEventListener("click",()=>{
     const i=$(b.dataset.eye),s=i.type==="password";i.type=s?"text":"password";b.textContent=s?"Ocultar":"Mostrar";}));
-  document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{
-    document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));$(b.dataset.go).classList.add("on");}));
-  $("form-login").addEventListener("submit",e=>{e.preventDefault();
-    const ok=["correo","clave"].map(check).every(Boolean);$("n-login").style.display=ok?"block":"none";});
-  $("form-rec").addEventListener("submit",e=>{e.preventDefault();
-    $("n-rec").style.display=check("correo2")?"block":"none";});
+  document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>vista(b.dataset.go)));
+  async function enviar(form,txt,fn){const btn=form.querySelector(".btn"),orig=btn.textContent;btn.disabled=true;btn.textContent=txt;try{await fn()}catch(e){return e}finally{btn.disabled=false;btn.textContent=orig}}
+
+  // Si el usuario llega desde el enlace del correo de recuperación, mostrar "nueva contraseña"
+  sb.auth.onAuthStateChange(ev=>{if(ev==="PASSWORD_RECOVERY")vista("v-new")});
+
+  // INICIAR SESIÓN
+  $("form-login").addEventListener("submit",async e=>{e.preventDefault();
+    if(!["correo","clave"].map(check).every(Boolean)){$("n-login").style.display="none";return}
+    const err=await enviar($("form-login"),"Ingresando...",async()=>{
+      const {data,error}=await sb.auth.signInWithPassword({email:$("correo").value.trim(),password:$("clave").value});
+      if(error)throw error;
+      const n=(data.user.user_metadata&&data.user.user_metadata.nombre)||"";
+      /* TODO siguiente etapa: redirigir a "Mi Aula" (mi-aula.html) */
+      aviso("n-login","¡Sesión iniciada"+(n?", "+n:"")+"! Tu panel Mi Aula estará disponible en la próxima etapa.","ok2");
+    });
+    if(err)aviso("n-login",msgError(err),"bad2");
+  });
+
+  // RECUPERAR CONTRASEÑA
+  $("form-rec").addEventListener("submit",async e=>{e.preventDefault();
+    if(!check("correo2")){$("n-rec").style.display="none";return}
+    const err=await enviar($("form-rec"),"Enviando...",async()=>{
+      const {error}=await sb.auth.resetPasswordForEmail($("correo2").value.trim(),{redirectTo:paginaLogin});
+      if(error)throw error;
+      aviso("n-rec","Si el correo está registrado, te enviamos un enlace para crear una nueva contraseña. Revisa tu bandeja y spam.","ok2");
+    });
+    if(err)aviso("n-rec",msgError(err),"bad2");
+  });
+
+  // NUEVA CONTRASEÑA
+  $("form-new").addEventListener("submit",async e=>{e.preventDefault();
+    if(!["clave3","clave4"].map(check).every(Boolean)){$("n-new").style.display="none";return}
+    const err=await enviar($("form-new"),"Guardando...",async()=>{
+      const {error}=await sb.auth.updateUser({password:$("clave3").value});
+      if(error)throw error;
+      aviso("n-new","Contraseña actualizada. Ya puedes iniciar sesión con tu nueva contraseña.","ok2");
+      await sb.auth.signOut();setTimeout(()=>vista("v-login"),2500);
+    });
+    if(err)aviso("n-new",msgError(err),"bad2");
+  });
 })();
 </script>
 </body>

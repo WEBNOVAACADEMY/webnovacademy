@@ -37,6 +37,7 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
 .foot{text-align:center;margin-top:18px;font-size:.9rem;color:var(--mut)}
 .notice{display:none;margin-top:16px;padding:12px 14px;border-radius:12px;background:#3cc8ff14;border:1px solid #3cc8ff55;color:#cdeeff;font-size:.85rem}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.notice.bad2{border-color:var(--err);background:#ff6b7a14;color:#ffd3d8}.notice.ok2{border-color:var(--ok);background:#35d49a14;color:#c8f5e3}.btn:disabled{opacity:.6;cursor:wait;transform:none}
 </style>
 </head>
 <body>
@@ -68,16 +69,31 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
         <div class="err">Las contraseñas no coinciden.</div></div>
       <div class="field" id="f-terms"><label class="terms"><input id="terms" type="checkbox"><span>Acepto los <a href="#">términos y condiciones</a> y la <a href="#">política de privacidad</a>.</span></label><div class="err">Debes aceptar los términos para continuar.</div></div>
       <button class="btn" type="submit">Crear mi cuenta</button>
-      <div class="notice" id="notice">Vista de diseño: las validaciones funcionan, pero la cuenta aún no se crea. Se conectará con Supabase Auth en la siguiente etapa.</div>
+      <div class="notice" id="notice"></div>
     </form>
     <p class="foot">¿Ya tienes cuenta? <a href="iniciar-sesion.html">Iniciar sesión</a></p>
   </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-/* ===== VALIDACIONES (solo interfaz) =====
-   TODO Etapa 2: en el envío válido, llamar a Supabase Auth (signUp).
-   El error de "correo duplicado" lo devolverá Supabase y se mostrará en el campo correo. */
+/* ===== CONEXIÓN A SUPABASE =====
+   La clave "publishable" es pública por diseño. NUNCA pegues aquí la clave "secret" ni "service_role". */
+const SUPABASE_URL="https://idmkxsempojxepfhhcie.supabase.co";
+const SUPABASE_KEY="sb_publishable_bud4Jlh9raHIgpUM7JG40Q_jkwNp_zo";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const paginaLogin=new URL("iniciar-sesion.html",location.href).href;
+function msgError(e){
+  const m=((e&&e.message)||"").toLowerCase();
+  if(m.includes("invalid login"))return "Correo o contraseña incorrectos.";
+  if(m.includes("not confirmed"))return "Aún no confirmas tu correo. Revisa tu bandeja de entrada (y spam).";
+  if(m.includes("already registered"))return "Este correo ya está registrado. Intenta iniciar sesión.";
+  if(m.includes("rate limit")||m.includes("too many"))return "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.";
+  if(m.includes("password"))return "La contraseña no cumple los requisitos de seguridad.";
+  if(m.includes("fetch")||m.includes("network"))return "No pudimos conectarnos. Revisa tu internet e inténtalo de nuevo.";
+  return "Ocurrió un error. Inténtalo nuevamente.";
+}
+
 (function(){
   const $=id=>document.getElementById(id), form=$("form");
   const wrap=el=>el.closest(".field");
@@ -88,19 +104,37 @@ input:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px #3cc8ff26
     clave2:v=>v!==""&&v===$("clave").value
   };
   function check(id){const ok=rules[id]($(id).value);const w=wrap($(id));w.classList.toggle("bad",!ok);w.classList.toggle("good",ok);return ok}
+  function aviso(t,tipo){const n=$("notice");n.textContent=t;n.className="notice "+(tipo||"");n.style.display="block"}
   Object.keys(rules).forEach(id=>{$(id).addEventListener("blur",()=>check(id));$(id).addEventListener("input",()=>{if(wrap($(id)).classList.contains("bad"))check(id)})});
-  $("clave").addEventListener("input",e=>{ // medidor de seguridad
+  $("clave").addEventListener("input",e=>{
     const v=e.target.value;let s=[v.length>=8,/[a-z]/.test(v),/[A-Z]/.test(v),/\d/.test(v),/[^\w\s]/.test(v)].filter(Boolean).length;
     const m=$("meter");m.style.width=(v?s*20:0)+"%";m.style.background=s<3?"var(--err)":s<5?"var(--cyan)":"var(--ok)";
     if($("clave2").value)check("clave2");
   });
   document.querySelectorAll("[data-eye]").forEach(b=>b.addEventListener("click",()=>{
     const i=$(b.dataset.eye),show=i.type==="password";i.type=show?"text":"password";b.textContent=show?"Ocultar":"Mostrar";}));
-  form.addEventListener("submit",e=>{
+  form.addEventListener("submit",async e=>{
     e.preventDefault();
     const all=Object.keys(rules).map(check).every(Boolean);
     const t=$("terms").checked;$("f-terms").classList.toggle("bad",!t);
-    $("notice").style.display=(all&&t)?"block":"none";
+    if(!(all&&t)){$("notice").style.display="none";return}
+    const btn=form.querySelector(".btn");btn.disabled=true;btn.textContent="Creando cuenta...";
+    try{
+      const {data,error}=await sb.auth.signUp({
+        email:$("correo").value.trim(),password:$("clave").value,
+        options:{data:{nombre:$("nombre").value.trim(),apellidos:$("apellidos").value.trim()},emailRedirectTo:paginaLogin}
+      });
+      if(error)throw error;
+      // Con confirmación de correo activa, un correo ya registrado devuelve identities vacío (sin error)
+      if(data.user&&data.user.identities&&data.user.identities.length===0){
+        aviso("Este correo ya está registrado. Intenta iniciar sesión.","bad2");
+      }else{
+        aviso("¡Cuenta creada! Te enviamos un correo para confirmarla. Revisa tu bandeja de entrada (y la carpeta de spam) y luego inicia sesión.","ok2");
+        form.reset();$("meter").style.width="0";
+        form.querySelectorAll(".field").forEach(f=>f.classList.remove("good","bad"));
+      }
+    }catch(err){aviso(msgError(err),"bad2")}
+    btn.disabled=false;btn.textContent="Crear mi cuenta";
   });
 })();
 </script>
