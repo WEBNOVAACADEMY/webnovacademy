@@ -6,7 +6,7 @@
 *{box-sizing:border-box;margin:0}body{min-height:100vh;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--txt);line-height:1.55;
  background-image:radial-gradient(700px 400px at 80% -5%,#1b3fa088,transparent),radial-gradient(600px 400px at -10% 60%,#0a5a9a44,transparent)}
 a{color:inherit;text-decoration:none}.grad{background:linear-gradient(90deg,var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
-header{position:sticky;top:0;z-index:5;border-bottom:1px solid var(--line);background:#050b1acc;backdrop-filter:blur(12px)}
+header{position:sticky;top:0;z-index:5;border-bottom:1px solid var(--line);background:#050b1a}
 .bar{width:min(1000px,92%);margin:auto;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:6px 0}
 .brand{display:flex;align-items:center;gap:8px;font-weight:800}.brand img{height:42px;mix-blend-mode:screen}
 nav{display:flex;align-items:center;gap:14px;font-size:.9rem;color:var(--mut);flex-wrap:wrap}nav a.on,nav a:hover{color:var(--txt)}
@@ -64,8 +64,11 @@ async function sesion(){
     b.disabled=true;b.textContent="Registrando...";
     const {error}=await sb.from("inscripciones").insert({curso_id:b.dataset.id});
     if(error&&error.code!=="23505"){b.disabled=false;b.textContent="Inscribirme";aviso("No pudimos registrar tu inscripción. Inténtalo nuevamente.","bad");return}
-    aviso("¡Solicitud de inscripción registrada! El pago con Mercado Pago se conectará en la siguiente etapa. Te llevamos a Mi Aula...","ok");
-    setTimeout(()=>location.href="mi-aula.html",1800);
+    const c=cursos.find(x=>x.id===b.dataset.id),a=$("aviso");
+    b.textContent="Inscripción registrada";
+    a.className="msg ok";a.style.display="block";
+    a.innerHTML='<b>¡Solicitud de inscripción registrada!</b><br>1. Realiza el pago en Mercado Pago.<br>2. Al terminar, vuelve a Webnova Academy, entra a Mi Aula y presiona “Ya realicé el pago”.<br>El acceso se habilita tras una revisión manual que puede tardar hasta 24 horas.<br><br>'+(c&&c.enlace_pago?'<a class="btn" target="_blank" rel="noopener" href="'+esc(c.enlace_pago)+'">Ir a Mercado Pago</a> ':'')+'<a class="btn g" href="mi-aula.html">Ir a Mi Aula</a>';
+    a.scrollIntoView({behavior:"smooth",block:"center"});
   });
 })();
 </script></body></html>
