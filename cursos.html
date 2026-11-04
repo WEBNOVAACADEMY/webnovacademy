@@ -43,6 +43,7 @@ async function sesion(){
   const {data:{session}}=await sb.auth.getSession(), b=$("sesion");
   b.textContent=session?"Cerrar sesión":"Iniciar sesión";
   b.onclick=async()=>{if(session)await sb.auth.signOut();location.href="iniciar-sesion.html"};
+  if(session)sb.rpc("es_admin").then(r=>{if(r.data===true){const a=document.createElement("a");a.href="admin.html";a.textContent="Administración";b.parentNode.insertBefore(a,b)}});
   return session;
 }
 (async function(){
