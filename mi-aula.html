@@ -60,7 +60,7 @@ function mensaje(e){
   if(!ses){location.href="iniciar-sesion.html";return}
   const u=ses.user,m=u.user_metadata||{};
   $("user").innerHTML=`<div><small>Alumno</small>${esc((m.nombre||"")+" "+(m.apellidos||""))}</div><div><small>Correo electrónico</small>${esc(u.email)}</div>`;
-  const {data,error}=await sb.from("inscripciones").select("id,estado,created_at,cursos(nombre,nivel,enlace_pago)").order("created_at",{ascending:false});
+  const {data,error}=await sb.from("inscripciones").select("id,curso_id,estado,created_at,cursos(nombre,nivel,enlace_pago)").order("created_at",{ascending:false});
   if(error){$("lista").innerHTML='<div class="vacio">No pudimos cargar tus inscripciones. Inténtalo de nuevo más tarde.</div>';return}
   if(!data.length){$("lista").innerHTML='<div class="card vacio">Aún no tienes inscripciones.<br><br><a class="btn" href="cursos.html">Explorar cursos</a></div>';return}
   $("lista").innerHTML=data.map(i=>{
@@ -69,7 +69,7 @@ function mensaje(e){
       <div class="row"><h3>${esc(curso.nombre)}</h3><span class="badge b-${esc(i.estado)}">${esc(ETIQ[i.estado]||i.estado)}</span></div>
       <div class="meta"><span>Fecha de inscripción: <b>${new Date(i.created_at).toLocaleDateString("es-CL")}</b></span><span>Estado del pago: <b>${esc(PAGO[i.estado]||"")}</b></span></div>
       ${ms?`<div class="msg ${ms[0]}">${ms[1]}</div>`:""}
-      ${i.estado==="pendiente_de_pago"?`<div style="display:flex;gap:10px;flex-wrap:wrap">${curso.enlace_pago?`<a class="btn" target="_blank" rel="noopener" href="${esc(curso.enlace_pago)}">Pagar con Mercado Pago</a>`:""}<button class="btn g" data-pagado="${esc(i.id)}">Ya realicé el pago</button></div><p class="meta" style="margin:10px 0 0">Después de pagar, vuelve aquí y presiona “Ya realicé el pago”. El curso se habilita solo tras la revisión manual.</p>`:i.estado==="acceso_habilitado"?'<button class="btn" data-aula>Acceder al curso</button>':'<button class="btn" disabled>Curso bloqueado</button>'}
+      ${i.estado==="pendiente_de_pago"?`<div style="display:flex;gap:10px;flex-wrap:wrap">${curso.enlace_pago?`<a class="btn" target="_blank" rel="noopener" href="${esc(curso.enlace_pago)}">Pagar con Mercado Pago</a>`:""}<button class="btn g" data-pagado="${esc(i.id)}">Ya realicé el pago</button></div><p class="meta" style="margin:10px 0 0">Después de pagar, vuelve aquí y presiona “Ya realicé el pago”. El curso se habilita solo tras la revisión manual.</p>`:i.estado==="acceso_habilitado"?`<a class="btn" href="aula.html?curso=${esc(i.curso_id)}">Acceder al curso</a>`:'<button class="btn" disabled>Curso bloqueado</button>'}
     </article>`}).join("");
   $("lista").addEventListener("click",async e=>{
     if(e.target.closest("[data-aula]"))alert("El aula virtual (módulos, clases y videos) se construirá en una etapa siguiente.");

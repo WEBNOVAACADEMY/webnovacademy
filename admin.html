@@ -83,14 +83,35 @@ function pintar(){
     c.innerHTML=l.length?l.map(r=>`<article class="card body" style="margin-bottom:12px"><div class="row"><h3>${esc(nom(r))}</h3><span class="badge ${r.confirmado?"b-acceso_habilitado":"b-pendiente_de_pago"}">${r.confirmado?"Correo confirmado":"Sin confirmar"}</span></div>
       <div class="meta"><span>${esc(r.email)}</span><span>Registrado: <b>${fd(r.created_at)}</b></span><span>Inscripciones: <b>${esc(r.inscripciones)}</b></span></div></article>`).join(""):'<div class="card vacio">Sin alumnos.</div>';
   }else{
+    if(GEST){pintarGest();return}
     c.innerHTML='<div class="acts" style="margin-bottom:14px"><button class="btn sm" id="nuevo">+ Agregar curso</button></div>'+CUR.map(r=>`<article class="card body" style="margin-bottom:14px" data-cid="${esc(r.id)}">
       <label class="fl">Nombre</label><input class="in" data-f="nombre" value="${esc(r.nombre)}">
       <label class="fl">Descripción</label><textarea class="in" data-f="descripcion">${esc(r.descripcion)}</textarea>
       <label class="fl">Precio (CLP)</label><input class="in" data-f="precio_clp" type="number" min="0" value="${esc(r.precio_clp)}">
       <label class="fl">Enlace de pago de Mercado Pago</label><input class="in" data-f="enlace_pago" value="${esc(r.enlace_pago)}">
       <label class="fl"><input type="checkbox" data-f="activo" ${r.activo?"checked":""}> Visible para los alumnos</label>
-      <div class="acts"><button class="btn sm" data-save="${esc(r.id)}">Guardar cambios</button></div></article>`).join("");
+      <div class="acts"><button class="btn sm" data-save="${esc(r.id)}">Guardar cambios</button><button class="btn sm g" data-gest="${esc(r.id)}">Módulos y clases</button></div></article>`).join("");
   }
+}
+let GEST=null;
+async function cargarGest(cid){
+  const m=await sb.from("modulos").select("*").eq("curso_id",cid).order("orden");
+  if(m.error){alert("No se pudo cargar. ¿Ejecutaste el SQL de la etapa 5?");return}
+  const ids=m.data.map(x=>x.id);
+  const c=ids.length?await sb.from("clases").select("*").in("modulo_id",ids).order("orden"):{data:[]};
+  GEST={cid,nombre:(CUR.find(x=>x.id===cid)||{}).nombre,mods:m.data,clases:c.data||[]};pintar();
+}
+function pintarGest(){
+  const g=GEST;
+  $("contenido").innerHTML=`<div class="acts" style="margin-bottom:14px"><button class="btn sm g" data-back>← Volver a cursos</button><button class="btn sm" data-addmod>+ Agregar módulo</button></div><h3 style="margin-bottom:12px">${esc(g.nombre)}</h3>`+(g.mods.length?g.mods.map(m=>`<article class="card body" style="margin-bottom:16px" data-mid="${esc(m.id)}">
+    <label class="fl">Módulo (sección) y orden</label><div style="display:flex;gap:8px"><input class="in" data-m="titulo" value="${esc(m.titulo)}"><input class="in" data-m="orden" type="number" value="${esc(m.orden)}" style="width:80px"></div>
+    <div class="acts"><button class="btn sm" data-savemod="${esc(m.id)}">Guardar módulo</button><button class="btn sm g" data-addcla="${esc(m.id)}">+ Agregar clase</button><button class="btn sm r" data-delmod="${esc(m.id)}">Eliminar módulo</button></div>
+    ${g.clases.filter(c=>c.modulo_id===m.id).map(c=>`<div class="hist" data-clid="${esc(c.id)}">
+      <label class="fl">Título de la clase y orden</label><div style="display:flex;gap:8px"><input class="in" data-c="titulo" value="${esc(c.titulo)}"><input class="in" data-c="orden" type="number" value="${esc(c.orden)}" style="width:80px"></div>
+      <label class="fl">Texto de la clase</label><textarea class="in" data-c="contenido" style="min-height:110px">${esc(c.contenido)}</textarea>
+      <label class="fl">Enlace del video (YouTube o Vimeo, opcional)</label><input class="in" data-c="video_url" value="${esc(c.video_url)}">
+      <div class="acts"><button class="btn sm" data-savecla="${esc(c.id)}">Guardar clase</button><button class="btn sm r" data-delcla="${esc(c.id)}">Eliminar clase</button></div></div>`).join("")}
+  </article>`).join(""):'<div class="card vacio">Aún no hay módulos. Presiona “+ Agregar módulo”.</div>');
 }
 async function cargar(){
   const [a,b,c]=await Promise.all([sb.rpc("admin_listar_inscripciones"),sb.rpc("admin_listar_alumnos"),sb.from("cursos").select("*").order("created_at")]);
@@ -105,8 +126,26 @@ async function cargar(){
   $("chk").style.display="none";$("panel").style.display="block";
   $("q").addEventListener("input",pintar);$("f").addEventListener("change",pintar);
   document.addEventListener("click",async e=>{
+    const gs=e.target.closest("[data-gest]");
+    if(gs){await cargarGest(gs.dataset.gest);return}
+    if(e.target.closest("[data-back]")){GEST=null;pintar();return}
+    if(e.target.closest("[data-addmod]")){const {error}=await sb.from("modulos").insert({curso_id:GEST.cid,titulo:"Nuevo módulo",orden:GEST.mods.length+1});if(error)alert("No se pudo crear el módulo.");else await cargarGest(GEST.cid);return}
+    const ac=e.target.closest("[data-addcla]");
+    if(ac){const n=GEST.clases.filter(c=>c.modulo_id===ac.dataset.addcla).length+1;const {error}=await sb.from("clases").insert({modulo_id:ac.dataset.addcla,titulo:"Nueva clase",orden:n});if(error)alert("No se pudo crear la clase.");else await cargarGest(GEST.cid);return}
+    const sm=e.target.closest("[data-savemod]");
+    if(sm){const card=sm.closest("[data-mid]"),v=n=>card.querySelector('[data-m="'+n+'"]').value;
+      const {error}=await sb.from("modulos").update({titulo:v("titulo").trim()||"Módulo",orden:parseInt(v("orden"),10)||1}).eq("id",sm.dataset.savemod);
+      alert(error?"No se pudo guardar.":"Módulo guardado.");return}
+    const sc=e.target.closest("[data-savecla]");
+    if(sc){const box=sc.closest("[data-clid]"),v=n=>box.querySelector('[data-c="'+n+'"]').value.trim();
+      const {error}=await sb.from("clases").update({titulo:v("titulo")||"Clase",orden:parseInt(v("orden"),10)||1,contenido:v("contenido")||null,video_url:v("video_url")||null}).eq("id",sc.dataset.savecla);
+      alert(error?"No se pudo guardar.":"Clase guardada.");return}
+    const dm=e.target.closest("[data-delmod]");
+    if(dm){if(!confirm("¿Eliminar este módulo y todas sus clases?"))return;const {error}=await sb.from("modulos").delete().eq("id",dm.dataset.delmod);if(error)alert("No se pudo eliminar.");else await cargarGest(GEST.cid);return}
+    const dc=e.target.closest("[data-delcla]");
+    if(dc){if(!confirm("¿Eliminar esta clase?"))return;const {error}=await sb.from("clases").delete().eq("id",dc.dataset.delcla);if(error)alert("No se pudo eliminar.");else await cargarGest(GEST.cid);return}
     const t=e.target.closest("[data-tab]");
-    if(t){tab=t.dataset.tab;document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("on",x===t));pintar();return}
+    if(t){tab=t.dataset.tab;GEST=null;document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("on",x===t));pintar();return}
     const s=e.target.closest("[data-est]");
     if(s){if(!confirm("¿"+s.dataset.txt+"? Quedará registrado con tu usuario, fecha y hora."))return;
       s.disabled=true;const {error}=await sb.rpc("admin_cambiar_estado",{p_inscripcion:s.dataset.id,p_estado:s.dataset.est});
