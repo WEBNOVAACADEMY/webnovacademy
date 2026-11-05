@@ -99,8 +99,13 @@ async function cargarGest(cid){
   if(m.error){alert("No se pudo cargar. ¿Ejecutaste el SQL de la etapa 5?");return}
   const ids=m.data.map(x=>x.id);
   const c=ids.length?await sb.from("clases").select("*").in("modulo_id",ids).order("orden"):{data:[]};
-  GEST={cid,nombre:(CUR.find(x=>x.id===cid)||{}).nombre,mods:m.data,clases:c.data||[]};pintar();
+  const ci=(c.data||[]).map(x=>x.id),mt=ci.length?await sb.from("materiales").select("*").in("clase_id",ci).order("created_at"):{data:[]};
+  GEST={cid,nombre:(CUR.find(x=>x.id===cid)||{}).nombre,mods:m.data,clases:c.data||[],mats:mt.data||[]};pintar();
 }
+function matHtml(cl){const l=(GEST.mats||[]).filter(m=>m.clase_id===cl);
+  return l.length?l.map(m=>`<div class="meta" style="margin:4px 0">📎 ${esc(m.nombre)} <button class="btn sm r" data-delmat="${esc(m.id)}" data-ruta="${esc(m.ruta)}" data-cl="${esc(cl)}">Quitar</button></div>`).join(""):'<div class="meta" style="margin:4px 0">Sin archivos.</div>';}
+async function refMat(cl){const r=await sb.from("materiales").select("*").eq("clase_id",cl).order("created_at");
+  GEST.mats=(GEST.mats||[]).filter(m=>m.clase_id!==cl).concat(r.data||[]);const d=$("mat-"+cl);if(d)d.innerHTML=matHtml(cl);}
 function pintarGest(){
   const g=GEST;
   $("contenido").innerHTML=`<div class="acts" style="margin-bottom:14px"><button class="btn sm g" data-back>← Volver a cursos</button><button class="btn sm" data-addmod>+ Agregar módulo</button></div><h3 style="margin-bottom:12px">${esc(g.nombre)}</h3>`+(g.mods.length?g.mods.map(m=>`<article class="card body" style="margin-bottom:16px" data-mid="${esc(m.id)}">
@@ -110,6 +115,7 @@ function pintarGest(){
       <label class="fl">Título de la clase y orden</label><div style="display:flex;gap:8px"><input class="in" data-c="titulo" value="${esc(c.titulo)}"><input class="in" data-c="orden" type="number" value="${esc(c.orden)}" style="width:80px"></div>
       <label class="fl">Texto de la clase</label><textarea class="in" data-c="contenido" style="min-height:110px">${esc(c.contenido)}</textarea>
       <label class="fl">Enlace del video (YouTube o Vimeo, opcional)</label><input class="in" data-c="video_url" value="${esc(c.video_url)}">
+      <label class="fl">Material descargable (PDF, imagen, ZIP u Office · máx. 20 MB)</label><div id="mat-${esc(c.id)}">${matHtml(c.id)}</div><div class="acts"><input type="file" data-file="${esc(c.id)}" style="font-size:.8rem;color:var(--mut);max-width:100%"><button class="btn sm g" data-upload="${esc(c.id)}">Subir archivo</button></div>
       <div class="acts"><button class="btn sm" data-savecla="${esc(c.id)}">Guardar clase</button><button class="btn sm r" data-delcla="${esc(c.id)}">Eliminar clase</button></div></div>`).join("")}
   </article>`).join(""):'<div class="card vacio">Aún no hay módulos. Presiona “+ Agregar módulo”.</div>');
 }
@@ -126,6 +132,22 @@ async function cargar(){
   $("chk").style.display="none";$("panel").style.display="block";
   $("q").addEventListener("input",pintar);$("f").addEventListener("change",pintar);
   document.addEventListener("click",async e=>{
+    const up=e.target.closest("[data-upload]");
+    if(up){const cl=up.dataset.upload,inp=document.querySelector('[data-file="'+cl+'"]'),f=inp&&inp.files[0];
+      if(!f){alert("Elige un archivo primero.");return}
+      if(f.size>20*1024*1024){alert("El archivo supera los 20 MB.");return}
+      up.disabled=true;up.textContent="Subiendo...";
+      const ruta=cl+"/"+Date.now()+"-"+f.name.replace(/[^\w.\-]+/g,"_");
+      const u=await sb.storage.from("materiales").upload(ruta,f,{upsert:false});let err=u.error;
+      if(!err){const r=await sb.from("materiales").insert({clase_id:cl,nombre:f.name,ruta,tamano:f.size});err=r.error;if(err)await sb.storage.from("materiales").remove([ruta])}
+      up.disabled=false;up.textContent="Subir archivo";
+      if(err){alert("No se pudo subir el archivo. Revisa el tipo (PDF, imagen, ZIP u Office) y el tamaño.");return}
+      inp.value="";await refMat(cl);return}
+    const dl=e.target.closest("[data-delmat]");
+    if(dl){if(!confirm("¿Quitar este archivo?"))return;
+      await sb.storage.from("materiales").remove([dl.dataset.ruta]);
+      const {error}=await sb.from("materiales").delete().eq("id",dl.dataset.delmat);
+      if(error)alert("No se pudo quitar el archivo.");await refMat(dl.dataset.cl);return}
     const gs=e.target.closest("[data-gest]");
     if(gs){await cargarGest(gs.dataset.gest);return}
     if(e.target.closest("[data-back]")){GEST=null;pintar();return}
